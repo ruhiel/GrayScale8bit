@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Mono.Options;
+using System;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -9,14 +10,34 @@ namespace GrayScale8bit
 	{
 		static void Main(string[] args)
 		{
-			var path = args[0];
+			string path = null;
+			bool backup = false;
 
-			File.Move(path, path + ".bak");
+			var optionSet = new OptionSet()
+				.Add("f|file=", "Write output to file.", v => path = v)
+				.Add("b|backup", "Save Backup File", v => backup = v != null);
 
-			var uri = new Uri(path + ".bak", UriKind.Relative);
+			var res = optionSet.Parse(args);
+
+			if(path == null)
+			{
+				ShowUsage(optionSet);
+				return;
+			}
+
+			var backupFile = path + ".bak";
+
+			File.Move(path, backupFile);
+
+			var uri = new Uri(backupFile, UriKind.Relative);
 
 			// load
-			var bitmap = new BitmapImage(uri);
+			WriteableBitmap bitmap;
+
+			using (var ms = new MemoryStream(File.ReadAllBytes(backupFile)))
+			{
+				bitmap = new WriteableBitmap(BitmapFrame.Create(ms));
+			}
 
 			var formatConvertedBitmap = new FormatConvertedBitmap(bitmap,
 				PixelFormats.Gray8, null, 0);
@@ -27,6 +48,19 @@ namespace GrayScale8bit
 				encoder.Frames.Add(BitmapFrame.Create(formatConvertedBitmap));
 				encoder.Save(fs);
 			}
+
+			if(!backup)
+			{
+				File.Delete(backupFile);
+			}
+		}
+
+		// Uasgeを表示する
+		private static void ShowUsage(OptionSet p)
+		{
+			Console.Error.WriteLine("Usage:GrayScale8bit [OPTIONS]");
+			Console.Error.WriteLine();
+			p.WriteOptionDescriptions(Console.Error);
 		}
 	}
 }
